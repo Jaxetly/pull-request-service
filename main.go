@@ -1,35 +1,35 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
+	"context"
 	"log"
-	"os"
+	"time"
 
+	"github.com/Jaxetly/pull-request-service/internal/config"
+	"github.com/Jaxetly/pull-request-service/internal/database"
 	_ "github.com/lib/pq"
 )
 
 func main() {
-	fmt.Println("Hello Avito!")
+	log.Println("Hello Avito!")
 
-	host := os.Getenv("POSTGRES_HOST")
-	port := os.Getenv("POSTGRES_PORT")
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	dbname := os.Getenv("POSTGRES_DB")
-
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
-
-	db, err := sql.Open("postgres", connStr)
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Configuration Error:\n%v", err)
+	}
+
+	log.Println("Configuration loaded successfully")
+	log.Printf("Database: %v", cfg.Database.DatabaseURL())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Подключаемся к БД
+	db, err := database.New(ctx, cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Successfully connected to database!")
+	log.Println("Successfully connected to database!")
 }
