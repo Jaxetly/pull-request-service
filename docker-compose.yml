@@ -16,11 +16,23 @@ services:
       retries: 15
       start_period: 30s
 
+    
+  migrate:
+    image: migrate/migrate
+    volumes:
+      - ./migrations:/migrations
+    command: ["-path", "/migrations", "-database", "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build: .
     ports:
       - "${APP_PORT}:${APP_PORT}"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
     environment:
