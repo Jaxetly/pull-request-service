@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/lib/pq"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func main() {
@@ -50,7 +52,18 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Mount("/", api.Handler(myServer))
 
-	log.Printf("Start listening to http://127.0.0.1:%v \n", cfg.Server.Port)
+	URL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Server.Port)
+	openapiURL := fmt.Sprintf("%s/openapi.yml", URL)
 
-	http.ListenAndServe(":8080", r)
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL(openapiURL),
+	))
+
+	r.Get("/openapi.yml", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./openapi.yml")
+	})
+
+	log.Printf("Start listening to %s \n", URL)
+
+	http.ListenAndServe(fmt.Sprintf(":%d", cfg.Server.Port), r)
 }

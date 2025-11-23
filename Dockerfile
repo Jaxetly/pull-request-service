@@ -7,5 +7,7 @@ COPY . .
 RUN go build -o /main main.go
 
 FROM alpine:3
+WORKDIR /app 
 COPY --from=builder main /app/main
+COPY openapi.yml /app/openapi.yml 
 ENTRYPOINT ["/app/main"]
