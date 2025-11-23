@@ -13,16 +13,18 @@ import (
 
 // Server реализует api.ServerInterface
 type Server struct {
-	teamService *service.TeamService
-	userService *service.UserService
-	prService   *service.PRService
+	teamService  *service.TeamService
+	userService  *service.UserService
+	prService    *service.PRService
+	statsService *service.StatsService
 }
 
-func NewServer(team *service.TeamService, user *service.UserService, pr *service.PRService) *Server {
+func NewServer(team *service.TeamService, user *service.UserService, pr *service.PRService, stats *service.StatsService) *Server {
 	return &Server{
-		teamService: team,
-		userService: user,
-		prService:   pr,
+		teamService:  team,
+		userService:  user,
+		prService:    pr,
+		statsService: stats,
 	}
 }
 
@@ -160,13 +162,31 @@ func (s *Server) PostPullRequestReassign(w http.ResponseWriter, r *http.Request)
 // Статистика по всем командам
 // (GET /stats/teams)
 func (s *Server) GetStatsTeams(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	ctx := r.Context()
+
+	stats, err := s.statsService.GetTeamStats(ctx)
+	if err != nil {
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, stats)
 }
 
 // Статистика по пользователям (ревью и открытые PR)
 // (GET /stats/users)
 func (s *Server) GetStatsUsers(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	ctx := r.Context()
+
+	stats, err := s.statsService.GetUserStats(ctx)
+	if err != nil {
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, stats)
 }
 
 // Создать команду с участниками (создаёт/обновляет пользователей)

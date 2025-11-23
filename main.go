@@ -42,8 +42,9 @@ func main() {
 	teamSvc := service.NewTeamService(db.Pool)
 	userSvc := service.NewUserService(db.Pool)
 	prSvc := service.NewPRService(db.Pool)
+	statsSvc := service.NewStatsService(db.Pool)
 
-	myServer := handler.NewServer(teamSvc, userSvc, prSvc)
+	myServer := handler.NewServer(teamSvc, userSvc, prSvc, statsSvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
