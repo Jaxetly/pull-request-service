@@ -55,6 +55,10 @@ func (r *PRRepository) AddReviewers(ctx context.Context, prID string, reviewerID
 
 // GetPR получает PR по ID
 func (r *PRRepository) GetPR(ctx context.Context, prID string) (api.PullRequest, error) {
+	returnError := func(err error) (api.PullRequest, error) {
+		return api.PullRequest{}, err
+	}
+
 	query := `
 		SELECT pull_request_id, pull_request_name, author_id, status, created_at, merged_at
 		FROM pull_requests 
@@ -66,9 +70,9 @@ func (r *PRRepository) GetPR(ctx context.Context, prID string) (api.PullRequest,
 	err := r.db.QueryRow(ctx, query, prID).Scan(&pr.PullRequestId, &pr.PullRequestName, &pr.AuthorId, &statusStr, &pr.CreatedAt, &pr.MergedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return api.PullRequest{}, errs.ErrPRNotFound
+			return returnError(errs.ErrPRNotFound)
 		}
-		return api.PullRequest{}, err
+		return returnError(err)
 	}
 
 	pr.Status = api.PullRequestStatus(statusStr)
@@ -77,7 +81,7 @@ func (r *PRRepository) GetPR(ctx context.Context, prID string) (api.PullRequest,
 
 	rows, err := r.db.Query(ctx, reviewersQuery, prID)
 	if err != nil {
-		return api.PullRequest{}, err
+		return returnError(err)
 	}
 	defer rows.Close()
 
@@ -85,9 +89,13 @@ func (r *PRRepository) GetPR(ctx context.Context, prID string) (api.PullRequest,
 	for rows.Next() {
 		var userID string
 		if err := rows.Scan(&userID); err != nil {
-			return api.PullRequest{}, err
+			return returnError(err)
 		}
 		pr.AssignedReviewers = append(pr.AssignedReviewers, userID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return returnError(err)
 	}
 
 	return pr, nil
@@ -135,6 +143,10 @@ func (r *PRRepository) GetUserReviews(ctx context.Context, userID string) ([]api
 		prShort.Status = api.PullRequestShortStatus(statusStr)
 
 		result = append(result, prShort)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return result, nil

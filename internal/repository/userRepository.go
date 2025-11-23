@@ -62,6 +62,10 @@ func (r *UserRepository) GetUsersFromTeam(ctx context.Context, teamName string) 
 		members = append(members, m)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return members, nil
 }
 
@@ -99,6 +103,10 @@ func (r *UserRepository) GetRandomActiveUsersFromTeam(ctx context.Context, teamN
 			return nil, err
 		}
 		usersIDs = append(usersIDs, userID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return usersIDs, nil
