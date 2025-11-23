@@ -138,16 +138,16 @@ func (s *PRService) ReassignReviewer(ctx context.Context, prID, oldUserID string
 		return returnError(err)
 	}
 
-	reviewersIDs, err := userRep.GetRandomActiveUsersFromTeam(ctx, teamName, 1, []string{pr.AuthorId, oldUserID})
+	candidates, err := userRep.GetRandomActiveUsersFromTeam(ctx, teamName, 1, []string{pr.AuthorId, oldUserID})
 	if err != nil {
 		return returnError(err)
 	}
 
-	if len(reviewersIDs) == 0 {
+	if len(candidates) == 0 {
 		return returnError(errs.ErrNoCandidate)
 	}
 
-	if err := prRep.AddReviewers(ctx, pr.PullRequestId, reviewersIDs); err != nil {
+	if err := prRep.AddReviewers(ctx, pr.PullRequestId, candidates); err != nil {
 		return returnError(err)
 	}
 
@@ -160,7 +160,7 @@ func (s *PRService) ReassignReviewer(ctx context.Context, prID, oldUserID string
 		return returnError(err)
 	}
 
-	return newPr, reviewersIDs[0], nil
+	return newPr, candidates[0], nil
 }
 
 func contains(slice []string, value string) bool {

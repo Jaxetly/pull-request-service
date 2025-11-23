@@ -117,6 +117,25 @@ func (r *PRRepository) RemoveReviewer(ctx context.Context, prID, userID string) 
 	return err
 }
 
+// RemoveReviewersByTeam удаляет всех ревьюверов из указанной команды из любых PR
+func (r *PRRepository) RemoveReviewersByTeam(ctx context.Context, teamName string) error {
+	query := `
+		DELETE FROM pr_reviewers
+		WHERE user_id IN (
+			SELECT u.user_id 
+			FROM users u 
+			WHERE u.team_name = $1
+		)
+		AND pull_request_id IN (
+			SELECT pull_request_id 
+			FROM pull_requests 
+			WHERE status = $2
+		)
+	`
+	_, err := r.db.Exec(ctx, query, teamName, api.PullRequestStatusOPEN)
+	return err
+}
+
 // GetUserReviews возвращает список PR, где юзер является ревьювером
 func (r *PRRepository) GetUserReviews(ctx context.Context, userID string) ([]api.PullRequestShort, error) {
 	query := `
