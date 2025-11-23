@@ -43,6 +43,8 @@ components:
                 - NOT_ASSIGNED
                 - NO_CANDIDATE
                 - NOT_FOUND
+                - INTERNAL_ERROR
+                - BAD_REQUEST
             message:
               type: string
       example:
@@ -120,6 +122,51 @@ components:
         status:
           type: string
           enum: [OPEN, MERGED]
+    TeamStatsItem:
+      type: object
+      required: [team_name, members_count, active_members_count]
+      properties:
+        team_name:
+          type: string
+        members_count:
+          type: integer
+          format: int32
+        active_members_count:
+          type: integer
+          format: int32
+    UserStatsItem:
+      type: object
+      required: [user_id, team_name, reviews_count, open_authored_prs]
+      properties:
+        user_id:
+          type: string
+        team_name:
+          type: string
+        reviews_count:
+          type: integer
+          format: int32
+          description: Количество PR, где пользователь назначен ревьювером
+        open_authored_prs:
+          type: integer
+          format: int32
+          description: Количество открытых PR, где пользователь является автором
+    TeamStatsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamStatsItem'
+    UserStatsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserStatsItem'
+
 
 paths:
   /team/add:
@@ -198,6 +245,39 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /team/deactivateUsers:
+    post:
+      tags: [Teams]
+      summary: Массовая деактивация пользователей команды
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team_name]
+              properties:
+                team_name:
+                  type: string
+      responses:
+        '200':
+          description: Операция успешно выполнена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    $ref: '#/components/schemas/Team'
+                  deactivated_users:
+                    type: integer
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /users/setIsActive:
     post:
@@ -425,3 +505,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /stats/teams:
+    get:
+      tags: [Stats]
+      summary: Статистика по всем командам
+      responses:
+        '200':
+          description: Количество участников и активных участников по каждой команде
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamStatsResponse'
+
+  /stats/users:
+    get:
+      tags: [Stats]
+      summary: Статистика по пользователям (ревью и открытые PR)
+      responses:
+        '200':
+          description: Количество ревью и открытых PR по каждому пользователю
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStatsResponse'

@@ -14,12 +14,14 @@ import (
 
 // Defines values for ErrorResponseErrorCode.
 const (
-	NOCANDIDATE ErrorResponseErrorCode = "NO_CANDIDATE"
-	NOTASSIGNED ErrorResponseErrorCode = "NOT_ASSIGNED"
-	NOTFOUND    ErrorResponseErrorCode = "NOT_FOUND"
-	PREXISTS    ErrorResponseErrorCode = "PR_EXISTS"
-	PRMERGED    ErrorResponseErrorCode = "PR_MERGED"
-	TEAMEXISTS  ErrorResponseErrorCode = "TEAM_EXISTS"
+	BADREQUEST    ErrorResponseErrorCode = "BAD_REQUEST"
+	INTERNALERROR ErrorResponseErrorCode = "INTERNAL_ERROR"
+	NOCANDIDATE   ErrorResponseErrorCode = "NO_CANDIDATE"
+	NOTASSIGNED   ErrorResponseErrorCode = "NOT_ASSIGNED"
+	NOTFOUND      ErrorResponseErrorCode = "NOT_FOUND"
+	PREXISTS      ErrorResponseErrorCode = "PR_EXISTS"
+	PRMERGED      ErrorResponseErrorCode = "PR_MERGED"
+	TEAMEXISTS    ErrorResponseErrorCode = "TEAM_EXISTS"
 )
 
 // Defines values for PullRequestStatus.
@@ -84,12 +86,40 @@ type TeamMember struct {
 	Username string `json:"username"`
 }
 
+// TeamStatsItem defines model for TeamStatsItem.
+type TeamStatsItem struct {
+	ActiveMembersCount int32  `json:"active_members_count"`
+	MembersCount       int32  `json:"members_count"`
+	TeamName           string `json:"team_name"`
+}
+
+// TeamStatsResponse defines model for TeamStatsResponse.
+type TeamStatsResponse struct {
+	Items []TeamStatsItem `json:"items"`
+}
+
 // User defines model for User.
 type User struct {
 	IsActive bool   `json:"is_active"`
 	TeamName string `json:"team_name"`
 	UserId   string `json:"user_id"`
 	Username string `json:"username"`
+}
+
+// UserStatsItem defines model for UserStatsItem.
+type UserStatsItem struct {
+	// OpenAuthoredPrs Количество открытых PR, где пользователь является автором
+	OpenAuthoredPrs int32 `json:"open_authored_prs"`
+
+	// ReviewsCount Количество PR, где пользователь назначен ревьювером
+	ReviewsCount int32  `json:"reviews_count"`
+	TeamName     string `json:"team_name"`
+	UserId       string `json:"user_id"`
+}
+
+// UserStatsResponse defines model for UserStatsResponse.
+type UserStatsResponse struct {
+	Items []UserStatsItem `json:"items"`
 }
 
 // TeamNameQuery defines model for TeamNameQuery.
@@ -114,6 +144,11 @@ type PostPullRequestMergeJSONBody struct {
 type PostPullRequestReassignJSONBody struct {
 	OldUserId     string `json:"old_user_id"`
 	PullRequestId string `json:"pull_request_id"`
+}
+
+// PostTeamDeactivateUsersJSONBody defines parameters for PostTeamDeactivateUsers.
+type PostTeamDeactivateUsersJSONBody struct {
+	TeamName string `json:"team_name"`
 }
 
 // GetTeamGetParams defines parameters for GetTeamGet.
@@ -146,6 +181,9 @@ type PostPullRequestReassignJSONRequestBody PostPullRequestReassignJSONBody
 // PostTeamAddJSONRequestBody defines body for PostTeamAdd for application/json ContentType.
 type PostTeamAddJSONRequestBody = Team
 
+// PostTeamDeactivateUsersJSONRequestBody defines body for PostTeamDeactivateUsers for application/json ContentType.
+type PostTeamDeactivateUsersJSONRequestBody PostTeamDeactivateUsersJSONBody
+
 // PostUsersSetIsActiveJSONRequestBody defines body for PostUsersSetIsActive for application/json ContentType.
 type PostUsersSetIsActiveJSONRequestBody PostUsersSetIsActiveJSONBody
 
@@ -160,9 +198,18 @@ type ServerInterface interface {
 	// Переназначить конкретного ревьювера на другого из его команды
 	// (POST /pullRequest/reassign)
 	PostPullRequestReassign(w http.ResponseWriter, r *http.Request)
+	// Статистика по всем командам
+	// (GET /stats/teams)
+	GetStatsTeams(w http.ResponseWriter, r *http.Request)
+	// Статистика по пользователям (ревью и открытые PR)
+	// (GET /stats/users)
+	GetStatsUsers(w http.ResponseWriter, r *http.Request)
 	// Создать команду с участниками (создаёт/обновляет пользователей)
 	// (POST /team/add)
 	PostTeamAdd(w http.ResponseWriter, r *http.Request)
+	// Массовая деактивация пользователей команды
+	// (POST /team/deactivateUsers)
+	PostTeamDeactivateUsers(w http.ResponseWriter, r *http.Request)
 	// Получить команду с участниками
 	// (GET /team/get)
 	GetTeamGet(w http.ResponseWriter, r *http.Request, params GetTeamGetParams)
@@ -196,9 +243,27 @@ func (_ Unimplemented) PostPullRequestReassign(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Статистика по всем командам
+// (GET /stats/teams)
+func (_ Unimplemented) GetStatsTeams(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Статистика по пользователям (ревью и открытые PR)
+// (GET /stats/users)
+func (_ Unimplemented) GetStatsUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Создать команду с участниками (создаёт/обновляет пользователей)
 // (POST /team/add)
 func (_ Unimplemented) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Массовая деактивация пользователей команды
+// (POST /team/deactivateUsers)
+func (_ Unimplemented) PostTeamDeactivateUsers(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -271,11 +336,53 @@ func (siw *ServerInterfaceWrapper) PostPullRequestReassign(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// GetStatsTeams operation middleware
+func (siw *ServerInterfaceWrapper) GetStatsTeams(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStatsTeams(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetStatsUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetStatsUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStatsUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostTeamAdd operation middleware
 func (siw *ServerInterfaceWrapper) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostTeamAdd(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeamDeactivateUsers operation middleware
+func (siw *ServerInterfaceWrapper) PostTeamDeactivateUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeamDeactivateUsers(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -490,7 +597,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/pullRequest/reassign", wrapper.PostPullRequestReassign)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/stats/teams", wrapper.GetStatsTeams)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/stats/users", wrapper.GetStatsUsers)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/team/add", wrapper.PostTeamAdd)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/team/deactivateUsers", wrapper.PostTeamDeactivateUsers)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/team/get", wrapper.GetTeamGet)

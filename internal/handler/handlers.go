@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/Jaxetly/pull-request-service/internal/api"
@@ -27,7 +26,7 @@ func NewServer(team *service.TeamService, user *service.UserService, pr *service
 	}
 }
 
-func (s *Server) mapError(err error) (status int, body api.ErrorResponse, ok bool) {
+func (s *Server) mapError(err error) (int, api.ErrorResponse) {
 	var resp api.ErrorResponse
 
 	setErrorResponse := func(code api.ErrorResponseErrorCode, msg string) api.ErrorResponse {
@@ -38,27 +37,28 @@ func (s *Server) mapError(err error) (status int, body api.ErrorResponse, ok boo
 
 	switch {
 	case errors.Is(err, errs.ErrTeamExists):
-		return http.StatusBadRequest, setErrorResponse(api.TEAMEXISTS, err.Error()), true
+		return http.StatusBadRequest, setErrorResponse(api.TEAMEXISTS, err.Error())
 
 	case errors.Is(err, errs.ErrPRExists):
-		return http.StatusConflict, setErrorResponse(api.PREXISTS, err.Error()), true
+		return http.StatusConflict, setErrorResponse(api.PREXISTS, err.Error())
 
 	case errors.Is(err, errs.ErrPRMerged):
-		return http.StatusConflict, setErrorResponse(api.PRMERGED, err.Error()), true
+		return http.StatusConflict, setErrorResponse(api.PRMERGED, err.Error())
 
 	case errors.Is(err, errs.ErrNoCandidate):
-		return http.StatusConflict, setErrorResponse(api.NOCANDIDATE, err.Error()), true
+		return http.StatusConflict, setErrorResponse(api.NOCANDIDATE, err.Error())
 
 	case errors.Is(err, errs.ErrReviewerNotAssigned):
-		return http.StatusConflict, setErrorResponse(api.NOTASSIGNED, err.Error()), true
+		return http.StatusConflict, setErrorResponse(api.NOTASSIGNED, err.Error())
 
 	case errors.Is(err, errs.ErrTeamNotFound),
 		errors.Is(err, errs.ErrUserNotFound),
 		errors.Is(err, errs.ErrPRNotFound):
-		return http.StatusNotFound, setErrorResponse(api.NOTFOUND, err.Error()), true
-	}
+		return http.StatusNotFound, setErrorResponse(api.NOTFOUND, err.Error())
 
-	return 0, api.ErrorResponse{}, false
+	default:
+		return http.StatusInternalServerError, setErrorResponse(api.INTERNALERROR, err.Error())
+	}
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {
@@ -76,24 +76,12 @@ func (s *Server) writeErrorResponse(w http.ResponseWriter, status int, resp api.
 	s.writeJSON(w, status, resp)
 }
 
-func (s *Server) writeError(w http.ResponseWriter, status int, err error) {
-	var code string
-	if status == http.StatusBadRequest {
-		code = "BAD_REQUEST"
-	} else {
-		code = "INTERNAL_SERVER_ERROR"
-	}
+func (s *Server) writeErrorResponseBadRequest(w http.ResponseWriter, err error) {
+	var resp api.ErrorResponse
+	resp.Error.Code = api.BADREQUEST
+	resp.Error.Message = err.Error()
 
-	resp := fmt.Sprintf(`
-	{ 
-		error: {
-			code: "%s",
-			message: "%s"
-		}
-	}
-	`, code, err.Error())
-
-	s.writeJSON(w, status, resp)
+	s.writeJSON(w, http.StatusBadRequest, resp)
 }
 
 // Создать PR и автоматически назначить до 2 ревьюверов из команды автора
@@ -103,18 +91,14 @@ func (s *Server) PostPullRequestCreate(w http.ResponseWriter, r *http.Request) {
 
 	var body api.PostPullRequestCreateJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.writeError(w, http.StatusBadRequest, err)
+		s.writeErrorResponseBadRequest(w, err)
 		return
 	}
 
 	pr, err := s.prService.CreatePR(ctx, api.PostPullRequestCreateJSONBody(body))
 	if err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
@@ -131,18 +115,14 @@ func (s *Server) PostPullRequestMerge(w http.ResponseWriter, r *http.Request) {
 
 	var body api.PostPullRequestMergeJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.writeError(w, http.StatusBadRequest, err)
+		s.writeErrorResponseBadRequest(w, err)
 		return
 	}
 
 	pr, err := s.prService.MergePR(ctx, body.PullRequestId)
 	if err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
@@ -159,18 +139,14 @@ func (s *Server) PostPullRequestReassign(w http.ResponseWriter, r *http.Request)
 
 	var body api.PostPullRequestReassignJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.writeError(w, http.StatusBadRequest, err)
+		s.writeErrorResponseBadRequest(w, err)
 		return
 	}
 
 	pr, newUserID, err := s.prService.ReassignReviewer(ctx, body.PullRequestId, body.OldUserId)
 	if err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
@@ -181,6 +157,18 @@ func (s *Server) PostPullRequestReassign(w http.ResponseWriter, r *http.Request)
 	s.writeJSON(w, http.StatusOK, response)
 }
 
+// Статистика по всем командам
+// (GET /stats/teams)
+func (s *Server) GetStatsTeams(w http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
+// Статистика по пользователям (ревью и открытые PR)
+// (GET /stats/users)
+func (s *Server) GetStatsUsers(w http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
 // Создать команду с участниками (создаёт/обновляет пользователей)
 // (POST /team/add)
 func (s *Server) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
@@ -188,17 +176,13 @@ func (s *Server) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 
 	var body api.PostTeamAddJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.writeError(w, http.StatusBadRequest, err)
+		s.writeErrorResponseBadRequest(w, err)
 		return
 	}
 
 	if err := s.teamService.CreateTeam(ctx, body); err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
@@ -208,6 +192,12 @@ func (s *Server) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusCreated, response)
 }
 
+// Массовая деактивация пользователей команды
+// (POST /team/deactivateUsers)
+func (s *Server) PostTeamDeactivateUsers(w http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
 // Получить команду с участниками
 // (GET /team/get)
 func (s *Server) GetTeamGet(w http.ResponseWriter, r *http.Request, params api.GetTeamGetParams) {
@@ -215,12 +205,8 @@ func (s *Server) GetTeamGet(w http.ResponseWriter, r *http.Request, params api.G
 
 	team, err := s.teamService.GetTeam(ctx, params.TeamName)
 	if err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
@@ -234,12 +220,8 @@ func (s *Server) GetUsersGetReview(w http.ResponseWriter, r *http.Request, param
 
 	reviews, err := s.userService.GetUserReviews(ctx, params.UserId)
 	if err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
@@ -257,18 +239,14 @@ func (s *Server) PostUsersSetIsActive(w http.ResponseWriter, r *http.Request) {
 
 	var body api.PostUsersSetIsActiveJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.writeError(w, http.StatusBadRequest, err)
+		s.writeErrorResponseBadRequest(w, err)
 		return
 	}
 
 	user, err := s.userService.SetActive(ctx, body.UserId, body.IsActive)
 	if err != nil {
-		status, resp, ok := s.mapError(err)
-		if ok {
-			s.writeErrorResponse(w, status, resp)
-		} else {
-			s.writeError(w, http.StatusInternalServerError, err)
-		}
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
 		return
 	}
 
