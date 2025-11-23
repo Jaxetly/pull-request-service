@@ -117,10 +117,10 @@ func (r *UserRepository) GetUserTeam(ctx context.Context, userID string) (string
 }
 
 // DeactivateUsersByTeam деактивирует всех пользователей команды
-func (r *UserRepository) DeactivateUsersByTeam(ctx context.Context, teamName string) error {
-	query := `UPDATE users SET is_active = false WHERE team_name = $1`
-	_, err := r.db.Exec(ctx, query, teamName)
-	return err
+func (r *UserRepository) DeactivateUsersByTeam(ctx context.Context, teamName string) (int64, error) {
+	query := `UPDATE users SET is_active = false WHERE team_name = $1 AND is_active = true`
+	tag, err := r.db.Exec(ctx, query, teamName)
+	return tag.RowsAffected(), err
 }
 
 // CheckUserExists проверяет, есть ли пользователь

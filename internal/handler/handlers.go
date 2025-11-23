@@ -195,7 +195,33 @@ func (s *Server) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 // Массовая деактивация пользователей команды
 // (POST /team/deactivateUsers)
 func (s *Server) PostTeamDeactivateUsers(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	ctx := r.Context()
+
+	var body api.PostTeamDeactivateUsersJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.writeErrorResponseBadRequest(w, err)
+		return
+	}
+
+	deactivatedUsers, err := s.userService.DeactivateUsersByTeam(ctx, body.TeamName)
+	if err != nil {
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
+		return
+	}
+
+	team, err := s.teamService.GetTeam(ctx, body.TeamName)
+	if err != nil {
+		status, resp := s.mapError(err)
+		s.writeErrorResponse(w, status, resp)
+		return
+	}
+
+	response := customtypes.PostTeamDeactivateUsersResponse{
+		Team:             team,
+		DeactivatedUsers: deactivatedUsers,
+	}
+	s.writeJSON(w, http.StatusCreated, response)
 }
 
 // Получить команду с участниками

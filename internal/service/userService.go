@@ -54,3 +54,25 @@ func (s *UserService) SetActive(ctx context.Context, userID string, isActive boo
 
 	return user, nil
 }
+
+// DeactivateUsersByTeam деактивирует всех пользователей команды
+func (s *UserService) DeactivateUsersByTeam(ctx context.Context, teamName string) (int64, error) {
+	teamRep := repository.NewTeamRepository(s.pool)
+
+	exists, err := teamRep.CheckTeamExists(ctx, teamName)
+	if err != nil {
+		return 0, err
+	}
+	if !exists {
+		return 0, errs.ErrTeamNotFound
+	}
+
+	userRep := repository.NewUserRepository(s.pool)
+
+	deactivatedUsers, err := userRep.DeactivateUsersByTeam(ctx, teamName)
+	if err != nil {
+		return 0, err
+	}
+
+	return deactivatedUsers, nil
+}

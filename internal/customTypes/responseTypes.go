@@ -10,6 +10,11 @@ type PostUsersResponse struct {
 	User api.User `json:"user"`
 }
 
+type PostTeamDeactivateUsersResponse struct {
+	Team             api.Team `json:"team"`
+	DeactivatedUsers int64    `json:"deactivated_users"`
+}
+
 type GetUsersGetReviewResponse struct {
 	UserID       string                 `json:"user_id"`
 	PullRequests []api.PullRequestShort `json:"pull_requests"`
