@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Jaxetly/pull-request-service/internal/api"
+	"github.com/Jaxetly/pull-request-service/internal/errs"
 	"github.com/Jaxetly/pull-request-service/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,6 +19,16 @@ func NewUserService(pool *pgxpool.Pool) *UserService {
 
 // GetUserReviews возвращает список PR, где пользователь является ревьювером
 func (s *UserService) GetUserReviews(ctx context.Context, userID string) ([]api.PullRequestShort, error) {
+	userRep := repository.NewUserRepository(s.pool)
+
+	exists, err := userRep.CheckUserExists(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errs.ErrUserNotFound
+	}
+
 	prRep := repository.NewPRRepository(s.pool)
 
 	result, err := prRep.GetUserReviews(ctx, userID)
