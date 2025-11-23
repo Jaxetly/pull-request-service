@@ -11,6 +11,7 @@ import (
 	"github.com/Jaxetly/pull-request-service/internal/database"
 	"github.com/Jaxetly/pull-request-service/internal/handler"
 	"github.com/Jaxetly/pull-request-service/internal/service"
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/lib/pq"
 )
@@ -45,6 +46,7 @@ func main() {
 	myServer := handler.NewServer(teamSvc, userSvc, prSvc)
 
 	r := chi.NewRouter()
+	r.Use(middleware.Logger)
 	r.Mount("/", api.Handler(myServer))
 
 	log.Printf("Start listening to http://127.0.0.1:%v \n", cfg.Server.Port)
