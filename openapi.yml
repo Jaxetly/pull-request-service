@@ -419,3 +419,9 @@ paths:
                     pull_request_name: Add search
                     author_id: u1
                     status: OPEN
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
